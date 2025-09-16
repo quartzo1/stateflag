@@ -1,2 +1,0 @@
-# stateflag
-t

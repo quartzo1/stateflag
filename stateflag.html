@@ -1,0 +1,188 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>State Flag RGB Average Clusters</title>
+<style>
+  body{margin:0;background:#0b0d12;color:#e8ecf4;font:14px system-ui,Segoe UI,Roboto,sans-serif}
+  .wrap{max-width:1250px;margin:20px auto;padding:0 16px}
+  .bar{display:flex;gap:14px;flex-wrap:wrap;align-items:center;background:#121621;border:1px solid #1e2331;padding:12px;border-radius:12px}
+  #plot{height:580px;margin-top:14px;background:#0e121a;border-radius:14px;border:1px solid #1e2331}
+  .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:14px;margin-top:18px}
+  .card{background:#121621;border:1px solid #1e2331;border-radius:12px;padding:12px}
+  .card h3{margin:0 0 8px;font-size:15px}
+  .pill{display:flex;align-items:center;gap:8px;border:1px solid #26304a;background:#1a2030;border-radius:999px;padding:6px 10px;margin:6px 6px 0 0}
+  .sw{width:14px;height:14px;border-radius:3px;border:1px solid #0006}
+  .flag{width:20px;height:14px;object-fit:cover;border:1px solid #0006;border-radius:2px}
+</style>
+<script src="https://cdn.plot.ly/plotly-2.35.2.min.js"></script>
+</head>
+<body>
+<div class="wrap">
+  <h1>State Flag RGB Average Clusters</h1>
+  <div class="bar">
+    <label>K clusters: <input id="k" type="range" min="2" max="8" value="4"> <span id="kval">4</span></label>
+    <button id="recluster">Recompute</button>
+  </div>
+  <div id="plot"></div>
+  <div id="clusters" class="grid"></div>
+</div>
+
+<script>
+/* 1. Dataset with flag image URLs */
+const FLAGS = [
+ ["Alabama","https://upload.wikimedia.org/wikipedia/commons/5/5c/Flag_of_Alabama.svg"],
+ ["Alaska","https://upload.wikimedia.org/wikipedia/commons/e/e6/Flag_of_Alaska.svg"],
+ ["Arizona","https://upload.wikimedia.org/wikipedia/commons/9/9d/Flag_of_Arizona.svg"],
+ ["Arkansas","https://upload.wikimedia.org/wikipedia/commons/9/9d/Flag_of_Arkansas.svg"],
+ ["California","https://upload.wikimedia.org/wikipedia/commons/0/01/Flag_of_California.svg"],
+ ["Colorado","https://upload.wikimedia.org/wikipedia/commons/4/46/Flag_of_Colorado.svg"],
+ ["Connecticut","https://upload.wikimedia.org/wikipedia/commons/9/96/Flag_of_Connecticut.svg"],
+ ["Delaware","https://upload.wikimedia.org/wikipedia/commons/c/c6/Flag_of_Delaware.svg"],
+ ["Florida","https://upload.wikimedia.org/wikipedia/commons/f/f7/Flag_of_Florida.svg"],
+ ["Georgia","https://upload.wikimedia.org/wikipedia/commons/5/54/Flag_of_Georgia_%28U.S._state%29.svg"],
+ ["Hawaii","https://upload.wikimedia.org/wikipedia/commons/e/ef/Flag_of_Hawaii.svg"],
+ ["Illinois","https://upload.wikimedia.org/wikipedia/commons/0/01/Flag_of_Illinois.svg"],
+ ["Indiana","https://upload.wikimedia.org/wikipedia/commons/a/ac/Flag_of_Indiana.svg"],
+ ["Iowa","https://upload.wikimedia.org/wikipedia/commons/a/aa/Flag_of_Iowa.svg"],
+ ["Kansas","https://upload.wikimedia.org/wikipedia/commons/d/da/Flag_of_Kansas.svg"],
+ ["Kentucky","https://upload.wikimedia.org/wikipedia/commons/8/8d/Flag_of_Kentucky.svg"],
+ ["Louisiana","https://upload.wikimedia.org/wikipedia/commons/e/e0/Flag_of_Louisiana.svg"],
+ ["Maine","https://upload.wikimedia.org/wikipedia/commons/3/35/Flag_of_Maine.svg"],
+ ["Maryland","https://upload.wikimedia.org/wikipedia/commons/a/a0/Flag_of_Maryland.svg"],
+ ["Massachusetts","https://upload.wikimedia.org/wikipedia/commons/f/f2/Flag_of_Massachusetts.svg"],
+ ["Michigan","https://upload.wikimedia.org/wikipedia/commons/b/b5/Flag_of_Michigan.svg"],
+ ["Minnesota","https://upload.wikimedia.org/wikipedia/commons/b/b9/Flag_of_Minnesota.svg"],
+ ["Mississippi","https://upload.wikimedia.org/wikipedia/commons/4/42/Flag_of_Mississippi.svg"],
+ ["Missouri","https://upload.wikimedia.org/wikipedia/commons/5/5a/Flag_of_Missouri.svg"],
+ ["Montana","https://upload.wikimedia.org/wikipedia/commons/c/cb/Flag_of_Montana.svg"],
+ ["Nebraska","https://upload.wikimedia.org/wikipedia/commons/4/4d/Flag_of_Nebraska.svg"],
+ ["Nevada","https://upload.wikimedia.org/wikipedia/commons/f/f1/Flag_of_Nevada.svg"],
+ ["New Hampshire","https://upload.wikimedia.org/wikipedia/commons/2/28/Flag_of_New_Hampshire.svg"],
+ ["New Jersey","https://upload.wikimedia.org/wikipedia/commons/9/92/Flag_of_New_Jersey.svg"],
+ ["New Mexico","https://upload.wikimedia.org/wikipedia/commons/c/c3/Flag_of_New_Mexico.svg"],
+ ["New York","https://upload.wikimedia.org/wikipedia/commons/1/1a/Flag_of_New_York.svg"],
+ ["North Carolina","https://upload.wikimedia.org/wikipedia/commons/b/bb/Flag_of_North_Carolina.svg"],
+ ["North Dakota","https://upload.wikimedia.org/wikipedia/commons/e/ee/Flag_of_North_Dakota.svg"],
+ ["Ohio","https://upload.wikimedia.org/wikipedia/commons/4/4c/Flag_of_Ohio.svg"],
+ ["Oklahoma","https://upload.wikimedia.org/wikipedia/commons/6/6e/Flag_of_Oklahoma.svg"],
+ ["Oregon","https://upload.wikimedia.org/wikipedia/commons/b/b9/Flag_of_Oregon.svg"],
+ ["Pennsylvania","https://upload.wikimedia.org/wikipedia/commons/f/f7/Flag_of_Pennsylvania.svg"],
+ ["Rhode Island","https://upload.wikimedia.org/wikipedia/commons/f/f3/Flag_of_Rhode_Island.svg"],
+ ["South Carolina","https://upload.wikimedia.org/wikipedia/commons/6/69/Flag_of_South_Carolina.svg"],
+ ["South Dakota","https://upload.wikimedia.org/wikipedia/commons/1/1a/Flag_of_South_Dakota.svg"],
+ ["Tennessee","https://upload.wikimedia.org/wikipedia/commons/9/9e/Flag_of_Tennessee.svg"],
+ ["Texas","https://upload.wikimedia.org/wikipedia/commons/f/f7/Flag_of_Texas.svg"],
+ ["Utah","https://upload.wikimedia.org/wikipedia/commons/f/f6/Flag_of_Utah.svg"],
+ ["Vermont","https://upload.wikimedia.org/wikipedia/commons/4/49/Flag_of_Vermont.svg"],
+ ["Virginia","https://upload.wikimedia.org/wikipedia/commons/4/47/Flag_of_Virginia.svg"],
+ ["Washington","https://upload.wikimedia.org/wikipedia/commons/5/54/Flag_of_Washington.svg"],
+ ["West Virginia","https://upload.wikimedia.org/wikipedia/commons/2/22/Flag_of_West_Virginia.svg"],
+ ["Wisconsin","https://upload.wikimedia.org/wikipedia/commons/2/22/Flag_of_Wisconsin.svg"],
+ ["Wyoming","https://upload.wikimedia.org/wikipedia/commons/b/bc/Flag_of_Wyoming.svg"]
+];
+
+/* Utility */
+function rgb01ToCss([r,g,b]){return`rgb(${Math.round(r*255)},${Math.round(g*255)},${Math.round(b*255)})`;}
+
+/* 2. Compute average RGB from image */
+async function avgFromImage(url){
+  const img=new Image(); img.crossOrigin="anonymous"; img.src=url;
+  await img.decode();
+  const w=128,h=Math.round((img.height/img.width)*w)||128;
+  const c=document.createElement("canvas"); c.width=w; c.height=h;
+  const ctx=c.getContext("2d",{willReadFrequently:true});
+  ctx.drawImage(img,0,0,w,h);
+  const data=ctx.getImageData(0,0,w,h).data;
+  let r=0,g=0,b=0,n=0;
+  for(let i=0;i<data.length;i+=4){
+    if(data[i+3]<8) continue;
+    r+=data[i]; g+=data[i+1]; b+=data[i+2]; n++;
+  }
+  return [r/(n*255),g/(n*255),b/(n*255)];
+}
+
+/* 3. K-means */
+function kmeans(points,K){
+  const centroids=[...Array(K)].map(()=>points[Math.floor(Math.random()*points.length)].rgb.slice());
+  let labels=new Array(points.length).fill(0);
+  for(let iter=0;iter<40;iter++){
+    let changed=false;
+    points.forEach((p,i)=>{
+      let best=0,bestd=1e9;
+      centroids.forEach((c,k)=>{
+        const d=(p.rgb[0]-c[0])**2+(p.rgb[1]-c[1])**2+(p.rgb[2]-c[2])**2;
+        if(d<bestd){bestd=d;best=k;}
+      });
+      if(labels[i]!==best){labels[i]=best;changed=true;}
+    });
+    const acc=Array.from({length:K},()=>({sum:[0,0,0],n:0}));
+    points.forEach((p,i)=>{const a=acc[labels[i]];a.sum[0]+=p.rgb[0];a.sum[1]+=p.rgb[1];a.sum[2]+=p.rgb[2];a.n++;});
+    centroids.forEach((c,k)=>{if(acc[k].n){c[0]=acc[k].sum[0]/acc[k].n;c[1]=acc[k].sum[1]/acc[k].n;c[2]=acc[k].sum[2]/acc[k].n;}});
+    if(!changed)break;
+  }
+  return{labels,centroids};
+}
+
+/* 4. Render */
+function render(points,labels,centroids){
+  const scatter={
+    x:points.map(p=>p.rgb[0]),y:points.map(p=>p.rgb[1]),z:points.map(p=>p.rgb[2]),
+    mode:"markers",type:"scatter3d",
+    marker:{size:6,color:points.map(p=>rgb01ToCss(p.rgb)),line:{width:0.5,color:"#000"}},
+    text:points.map(p=>p.name),hoverinfo:"text"
+  };
+  const ctrace={
+    x:centroids.map(c=>c[0]),y:centroids.map(c=>c[1]),z:centroids.map(c=>c[2]),
+    mode:"markers+text",type:"scatter3d",
+    marker:{size:12,symbol:"diamond",color:centroids.map(c=>rgb01ToCss(c)),line:{width:1,color:"#000"}},
+    text:centroids.map((_,i)=>"C"+(i+1)),textposition:"top center"
+  };
+  const lines=[];
+  points.forEach((p,i)=>{const c=centroids[labels[i]];
+    lines.push({x:[p.rgb[0],c[0]],y:[p.rgb[1],c[1]],z:[p.rgb[2],c[2]],
+      mode:"lines",type:"scatter3d",line:{color:rgb01ToCss(p.rgb),width:1},hoverinfo:"skip"});
+  });
+  Plotly.newPlot("plot",[scatter,ctrace,...lines],{
+    scene:{xaxis:{title:"Red"},yaxis:{title:"Green"},zaxis:{title:"Blue"},bgcolor:"#0e121a"},
+    paper_bgcolor:"#0b0d12",margin:{l:0,r:0,t:10,b:0},showlegend:false
+  },{displaylogo:false,responsive:true});
+
+  const K=centroids.length,groups=Array.from({length:K},()=>[]);
+  points.forEach((p,i)=>groups[labels[i]].push(p));
+  const host=document.getElementById("clusters");host.innerHTML="";
+  groups.forEach((arr,idx)=>{
+    const card=document.createElement("div");card.className="card";
+    const h=document.createElement("h3");h.textContent=`Cluster ${idx+1}`;card.appendChild(h);
+    arr.sort((a,b)=>a.name.localeCompare(b.name));
+    arr.forEach(p=>{
+      const pill=document.createElement("div");pill.className="pill";
+      const img=document.createElement("img");img.className="flag";img.src=p.flag;
+      const sw=document.createElement("span");sw.className="sw";sw.style.background=rgb01ToCss(p.rgb);
+      const nm=document.createElement("span");nm.textContent=p.name;
+      pill.appendChild(img);pill.appendChild(sw);pill.appendChild(nm);
+      card.appendChild(pill);
+    });
+    host.appendChild(card);
+  });
+}
+
+/* 5. Driver */
+async function run(){
+  const K=+document.getElementById("k").value;
+  document.getElementById("kval").textContent=K;
+  const pts=[];
+  for(const [name,url] of FLAGS){
+    try{const rgb=await avgFromImage(url); pts.push({name,flag:url,rgb});}
+    catch(e){console.warn("fail",name);}
+  }
+  const {labels,centroids}=kmeans(pts,K);
+  render(pts,labels,centroids);
+}
+document.getElementById("recluster").addEventListener("click",run);
+document.getElementById("k").addEventListener("input",e=>{document.getElementById("kval").textContent=e.target.value;});
+window.addEventListener("load",run);
+</script>
+</body>
+</html>
